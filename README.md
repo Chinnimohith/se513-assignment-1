@@ -55,54 +55,75 @@ pytest -m boundary
 - `registration` is importable directly in your tests (no `src.` prefix
   needed), e.g. `from registration import can_register`.
 
-  ## Test Design
+ ## Test Design
 
-### Equivalence Partitions
+### Equivalence Partitioning
 
-The `can_register` function was tested using valid and invalid input partitions:
+| Input / Condition | Valid Class | Invalid Class | Representative Values | Expected Behavior |
+|---|---|---|---|---|
+| current_credits | 0–15 | < 0 or > 15 | 0, 10, 15, -1, 16 | Valid values may allow registration; invalid values reject registration |
+| course_credits | 1–4 | < 1 or > 4 | 1, 3, 4, 0, 5 | Valid values may allow registration; invalid values reject registration |
+| prerequisite_met | True | False | True, False | True may allow registration; False rejects registration |
+| resulting credit load | <= 18 | > 18 | 18, 19 | 18 is allowed; above 18 is rejected |
+| total_credits for fee | 0–18 | < 0 or > 18 | 0, 11, 12, 13, 18, -1, 19 | Valid values return a fee; invalid values raise ValueError |
 
-- `current_credits`: valid values are 0–15; invalid values are below 0 or above 15.
-- `course_credits`: valid values are 1–4; invalid values are below 1 or above 4.
-- `prerequisite_met`: both `True` and `False` were tested.
-- Registration is allowed only when the prerequisite is met and the resulting total credits do not exceed 18.
-
-The `calculate_registration_fee` function was tested with valid total credits from 0–18 and invalid values below 0 or above 18.
+These representative values cover each important valid and invalid
+equivalence class without testing every possible input.
 
 ### Boundary-Value Analysis
 
-Boundary tests include:
+| Boundary | Neighboring Values | Expected Behavior |
+|---|---|---|
+| current_credits lower boundary | -1, 0 | -1 rejected; 0 valid |
+| current_credits upper boundary | 15, 16 | 15 valid; 16 rejected |
+| course_credits lower boundary | 0, 1 | 0 rejected; 1 valid |
+| course_credits upper boundary | 4, 5 | 4 valid; 5 rejected |
+| resulting credit load | 18, 19 | 18 allowed; 19 rejected |
+| fee transition | 11, 12, 13 | Correct fee is calculated on both sides of the 12-credit transition |
+| fee valid range | -1, 0, 18, 19 | 0 and 18 valid; -1 and 19 raise ValueError |
 
-- `current_credits`: -1, 0, 15, and 16.
-- `course_credits`: 0, 1, 4, and 5.
-- Resulting credits at 18 and just above 18.
-- Registration fee values around the 12-credit transition.
-- Invalid fee values -1 and 19.
+Boundary testing is important because an incorrect comparison operator
+such as `<` instead of `<=`, or `>` instead of `>=`, could incorrectly
+accept or reject values exactly at the allowed limits.
 
 ### Positive and Negative Testing
 
-Positive tests verify valid registration and fee calculations. Negative tests verify failed registration conditions and confirm that invalid fee inputs raise `ValueError`.
+Positive tests verify valid registration scenarios and correct fee
+calculations. Negative tests verify prerequisite failures, invalid credit
+loads, and invalid fee inputs using `pytest.raises(ValueError)`.
 
-### Pytest Features
+### Parametrization and Fixtures
 
-The test suite uses `@pytest.mark.parametrize` to run multiple input combinations without duplicating test code.
+The test suite uses `@pytest.mark.parametrize` for groups of similar
+input and expected-output cases, especially boundary cases.
 
-A reusable `valid_student` fixture provides representative student data and is used by multiple tests.
+A reusable `valid_student` fixture provides representative student data
+and is used by multiple tests.
 
-A yield-based `temporary_resource` fixture demonstrates setup and cleanup behavior.
+A yield-based `temporary_resource` fixture demonstrates setup and cleanup
+of a temporary resource. The cleanup executes after the test completes.
+
+Tests are independent and do not depend on execution order or leftover
+state from other tests.
 
 ### Markers
 
-The following pytest markers are used:
+The test suite uses the following pytest markers:
 
 - `unit` — unit tests for individual functions.
-- `positive` — tests with valid inputs and expected successful behavior.
-- `negative` — tests for invalid inputs or rejected registration.
+- `positive` — valid inputs and expected successful behavior.
+- `negative` — invalid inputs or rejected registration.
 - `boundary` — tests focused on boundary values.
 
-Marker subsets can be run with:
+### Running the Test Suite
 
-```bash
-pytest -m positive
-pytest -m negative
-pytest -m boundary
-pytest -m unit
+Run the complete test suite:
+
+    pytest
+
+Run selected groups:
+
+    pytest -m positive
+    pytest -m negative
+    pytest -m boundary
+    pytest -m unit
